@@ -1,8 +1,8 @@
-name: SonarCloud .NET 9 + Quality Gate
+name: SonarCloud Python
 
 on:
   push:
-    branches: ['**']      # analiza todas las ramas
+    branches: ['**']    # analiza todas las ramas
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -21,28 +21,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: SonarScanner Begin (wait for Quality Gate)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
         run: |
-          dotnet sonarscanner begin \
-            /k:"${{ env.SONAR_PROJECT_KEY }}" \
-            /o:"${{ env.SONAR_ORG }}" \
-            /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.token="${{ env.SONAR_TOKEN }}" \
-            /d:sonar.sourceEncoding="UTF-8" \
-            /d:sonar.projectBaseDir="${{ github.workspace }}" \
-            /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
-            /d:sonar.qualitygate.wait=true \
-            /d:sonar.qualitygate.timeout=600   # opcional (segundos). default=300
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage sonar-scanner
 
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Test with coverage (OpenCover)
+      - name: Run tests with coverage
         run: |
-          dotnet test --no-build --configuration Release \
-            /p:CollectCoverage=true \
-            /p:CoverletOutputFormat=opencover \
-            /p:CoverletOutput=./TestResults/coverage
+          coverage run -m unittest discover
+          coverage xml
 
-      - name: SonarScanner End (publishes analysis & waits QG)
-        run: dotnet sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"
+      - name: SonarCloud Scan (wait for Quality Gate)
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey="${{ env.SONAR_PROJECT_KEY }}" \
+            -Dsonar.organization="${{ env.SONAR_ORG }}" \
+            -Dsonar.host.url="https://sonarcloud.io" \
+            -Dsonar.login="${{ env.SONAR_TOKEN }}" \
+            -Dsonar.python.coverage.reportPaths=coverage.xml \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=600 \
+            -Dsonar.sourceEncoding=UTF-8 \
+            -Dsonar.projectBaseDir="${{ github.workspace }}"
+
