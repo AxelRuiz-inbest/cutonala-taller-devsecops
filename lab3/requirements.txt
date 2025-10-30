@@ -1,0 +1,5 @@
+flask==0.12
+requests==2.18.0
+jinja2==2.9.6
+safety
+pip-audit
